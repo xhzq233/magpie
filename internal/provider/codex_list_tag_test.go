@@ -210,6 +210,13 @@ func TestCodexListTagBuiltAgainAfterItsTime(t *testing.T) {
 func TestCodexListTagNotKeptOverAFreshFile(t *testing.T) {
 	listTagHome(t)
 	writeCodexConfig(t, "model_reasoning_effort = \"high\"\n")
+	// Keep the file unsettled for the whole allocation measurement. A
+	// loaded runner can take longer than the two-second settling window.
+	future := time.Now().Add(time.Hour)
+	if err := os.Chtimes(filepath.Join(catalog.CodexHome(), "config.toml"), future, future); err != nil {
+		t.Fatal(err)
+	}
+
 	CodexListTag()
 	if n, _ := measure(func() { CodexListTag() }); n < 1000 {
 		t.Errorf("over a file written just now, the tag took %.0f allocations a call: kept", n)
