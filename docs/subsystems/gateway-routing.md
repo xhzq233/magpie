@@ -1,5 +1,36 @@
 # Gateway routing and fallback
 
+## Fork: return the first chat failure
+
+This fork adds `noAutomaticRetries` (boolean, default `false`) in
+`~/.config/magpie/settings.json`. When enabled, the gateway returns the first
+chat generation's failure to the client, for every caller key and provider,
+including plugin accounts. It does not retry that account, fail over after a
+failed attempt, replan the request, repair a refused request and resend it, or
+continue an interrupted stream. A later, separate client request is still
+accepted. Normal initial routing, authentication and admission checks remain.
+
+The implementation uses `Provider.PassesErrors` for raw error delivery and
+stream behavior, marks the routing attempt as passing, and stops request-repair
+paths before a second send. Same-protocol HTTP errors retain the upstream
+status and body, including `x-should-retry` when supplied. A stream already
+started ends with its error; it cannot change the HTTP status already sent.
+Gateway route and usage records retain the single failed attempt. Like the
+existing provider error-pass mode, errors do not put an account into backoff.
+
+This controls the gateway's chat retry layer. A plugin/official CLI, native
+vendor driver, network transport, or client can have its own retry behavior;
+it does not disable those or change timeouts. Image/video/job retries are not
+controlled by this setting. Production here uses the AGY plugin through
+Messages; public OpenAI and Images endpoints are disabled separately.
+
+Verification: `go test -tags nogui ./internal/gateway -run
+'^TestNoAutomaticRetries'`. Fixtures cover raw HTTP errors, a plugin with two
+accounts plus a fallback, stream errors, interrupted translated streams,
+successful subsequent requests, and unchanged retry behavior with the switch
+unset. No real model service or account is used.
+
+
 The gateway is magpie's local LLM endpoint (`127.0.0.1:3425` by default). It
 serves Chat Completions, Responses, Anthropic Messages and Gemini. It finds
 the provider, key or account and model for each request. When the upstream

@@ -386,6 +386,7 @@ func Merge(body []byte, cur settings.Settings, web bool) (settings.Settings, err
 	// gateway mode, set on its own (gateway-mode)
 	in.GatewayMode = cur.GatewayMode
 	in.NoAccountDiscovery = cur.NoAccountDiscovery // set on its own (account-discovery, or the CLI)
+	in.NoAutomaticRetries = cur.NoAutomaticRetries // fork deployment policy; not a page preference
 	if v := strings.TrimSpace(in.Vision); v != "" && v != "off" && v != cur.Vision {
 		if _, _, ok := provider.Resolve(v); !ok {
 			return in, fmt.Errorf("no model %s to describe images", v)

@@ -469,6 +469,11 @@ type Settings struct {
 	// as by default, subscriptions are found as ever. This computer's own
 	// (KeepOwn), set only by its own switch or `magpie accounts discovery`.
 	NoAccountDiscovery bool `json:"noAccountDiscovery,omitempty"`
+	// NoAutomaticRetries returns a chat generation's first failure to the
+	// client, including plugin accounts. It disables gateway retries,
+	// failover, request repair and interrupted-stream continuation.
+	// A plugin or client may still implement its own retries.
+	NoAutomaticRetries bool `json:"noAutomaticRetries,omitempty"`
 	// SignInLinkOnly keeps an account's sign-in page out of the default
 	// browser: the window (and the command line) shows its link to copy
 	// into a browser the user picks, a separate or fingerprint browser
@@ -1522,6 +1527,7 @@ func (s *Settings) KeepOwn(cur Settings) {
 	s.NoWSLAgents = cur.NoWSLAgents
 	s.QuotaReads = cur.QuotaReads
 	s.NoAccountDiscovery = cur.NoAccountDiscovery
+	s.NoAutomaticRetries = cur.NoAutomaticRetries
 	s.LAN, s.AllowIPs, s.MTLS = cur.LAN, cur.AllowIPs, cur.MTLS
 	s.RouterNote, s.RouterAllTools = cur.RouterNote, cur.RouterAllTools
 	s.FetchPrivate = cur.FetchPrivate

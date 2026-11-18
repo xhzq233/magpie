@@ -25,7 +25,7 @@ func passError(w http.ResponseWriter, p provider.Provider, proto, upstream provi
 	words := provider.APIError(b, res.Status)
 	u.ErrType = provider.ErrorType(b)
 	for k, vs := range res.Header {
-		if l := strings.ToLower(k); l == "retry-after" || strings.Contains(l, "ratelimit") {
+		if l := strings.ToLower(k); l == "retry-after" || l == "x-should-retry" || strings.Contains(l, "ratelimit") {
 			w.Header()[k] = vs
 		}
 	}
