@@ -1400,6 +1400,13 @@ func (d *codeAssistDecoder) decode(data string, emit func(Event)) error {
 		emit(Event{Kind: KStart, MsgID: c.ResponseID, Model: c.ModelVersion, Usage: prompt})
 	}
 	for _, cand := range c.Candidates {
+		// Google can return HTTP 200 with no parts and only finishMessage,
+		// even without finishReason. Keep its explanation and prompt usage.
+		if catalog.DrawsID(c.ModelVersion) && len(cand.Content.Parts) == 0 && cand.FinishMessage != "" {
+			d.flush(emit)
+			d.stopped = true
+			emit(Event{Kind: KError, Code: "generation_failed", Text: cand.FinishMessage})
+		}
 		for _, p := range cand.Content.Parts {
 			switch {
 			case p.FunctionCall != nil:
@@ -1704,6 +1711,7 @@ type geminiChunk struct {
 			Parts []gPart `json:"parts"`
 		} `json:"content"`
 		FinishReason      string `json:"finishReason"`
+		FinishMessage     string `json:"finishMessage"`
 		GroundingMetadata *struct {
 			WebSearchQueries []string `json:"webSearchQueries"`
 			GroundingChunks  []struct {

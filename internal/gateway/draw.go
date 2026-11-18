@@ -81,6 +81,14 @@ func givenTo(ctx context.Context, start time.Time) time.Duration {
 // maxDrawings is how many images one request may ask for.
 const maxDrawings = 4
 
+// drawingFailure keeps a machine-readable reason apart from vendor wording.
+// Public relays can explain the failure without exposing the vendor's body.
+type drawingFailure struct {
+	code, message string
+}
+
+func (e *drawingFailure) Error() string { return e.message }
+
 // drawer is the model a request that names none draws with: the Settings'
 // ImageGen while it resolves, else AutoDrawer's. None when it is off or no
 // provider draws.
@@ -783,7 +791,7 @@ func (s *Server) images(edit bool) http.HandlerFunc {
 		call.Millis = time.Since(start).Milliseconds()
 		call.Status, call.Usage.Input, call.Usage.Output = code, out.Input, out.Output
 		if err == nil && len(out.Images) == 0 {
-			code, err = 502, errors.New(model+" drew nothing"+vendorSaid(out.Text))
+			code, err = 502, &drawingFailure{"image_empty_response", model + " drew nothing" + vendorSaid(out.Text)}
 			call.Status = code
 		}
 		providerKeyID, providerKeyName := "", ""
@@ -791,10 +799,20 @@ func (s *Server) images(edit bool) http.HandlerFunc {
 			providerKeyID, providerKeyName = provider.KeyID(p.Key), p.KeyName
 		}
 		side.end(p, model, call.Status, err, Usage{Input: out.Input, Output: out.Output})
-		appendUsage(r, usage.Record{RouteID: side.id(), Operation: "generate_content", Time: start, Agent: call.Agent, Via: call.Via, Provider: p.ID, Host: p.Where(), Model: model, Requested: call.Model, ProviderKeyID: providerKeyID, ProviderKeyName: providerKeyName, ProviderAccount: accountOf(p),
-			Input: out.Input, Output: out.Output, Millis: call.Millis, Status: call.Status, Session: sessionOf(r.Header)})
+		rec := usage.Record{RouteID: side.id(), Operation: "generate_content", Time: start, Agent: call.Agent, Via: call.Via, Provider: p.ID, Host: p.Where(), Model: model, Requested: call.Model, ProviderKeyID: providerKeyID, ProviderKeyName: providerKeyName, ProviderAccount: accountOf(p),
+			Input: out.Input, Output: out.Output, Millis: call.Millis, Status: call.Status, Session: sessionOf(r.Header)}
+		var failure *drawingFailure
+		errors.As(err, &failure)
 		if err != nil {
 			call.Error = err.Error()
+			errType := "api_error"
+			if failure != nil {
+				errType = failure.code
+			}
+			failedWith(&rec, code, call.Error, errType)
+		}
+		appendUsage(r, rec)
+		if err != nil {
 			s.record(call)
 			if d := time.Until(capBack); d > 0 {
 				w.Header().Set("Retry-After", strconv.Itoa(int(d.Seconds())+1))
@@ -803,7 +821,12 @@ func (s *Server) images(edit bool) http.HandlerFunc {
 			if len(skipped) > 0 {
 				msg += " (tried first: " + call.Fallback + ")"
 			}
-			writeError(w, provider.Chat, code, msg)
+			if failure != nil {
+				writeJSON(w, code, map[string]any{"error": map[string]any{
+					"type": "api_error", "code": failure.code, "message": msg, "param": nil}})
+			} else {
+				writeError(w, provider.Chat, code, msg)
+			}
 			return
 		}
 		s.record(call)
@@ -2161,7 +2184,7 @@ func (s *Server) drawCodeAssist(ctx context.Context, p provider.Provider, model 
 			return drawn{}, code, errors.New(msg)
 		}
 		var out drawn
-		var failed string
+		var failed, failedCode string
 		for ev := range events {
 			switch ev.Kind {
 			case KImage:
@@ -2178,10 +2201,17 @@ func (s *Server) drawCodeAssist(ctx context.Context, p provider.Provider, model 
 				out.Output += ev.Usage.Output
 			case KError:
 				failed = p.Name + ": " + ev.Text
+				failedCode = ""
+				if ev.Code == "generation_failed" {
+					failedCode = "image_generation_failed"
+				}
 			}
 		}
 		out.Text = strings.TrimSpace(out.Text)
 		if failed != "" && len(out.Images) == 0 {
+			if failedCode != "" {
+				return out, 502, &drawingFailure{failedCode, failed}
+			}
 			return out, saidStatus(failed), errors.New(failed)
 		}
 		return out, 200, nil
