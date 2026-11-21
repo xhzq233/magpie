@@ -335,7 +335,10 @@ func TestWebSearchAskedOfEachAPI(t *testing.T) {
 		t.Errorf("anthropic: %s", b)
 	}
 	codex := provider.Provider{ID: "codex", Responses: provider.CodexBase, Account: &provider.Account{Agent: "codex"}}
-	if !searchesItself(codex, provider.Responses) || searchesItself(provider.Provider{Chat: "https://api.deepseek.com"}, provider.Chat) ||
+	siwc := provider.Provider{ID: "chatgpt-api", Responses: "https://api.openai.com/v1", Account: &provider.Account{Agent: "chatgpt-api"}}
+	if !searchesItself(codex, provider.Responses) || !searchesItself(siwc, provider.Responses) ||
+		searchRank(siwc) < 0 ||
+		searchesItself(provider.Provider{Chat: "https://api.deepseek.com"}, provider.Chat) ||
 		!searchesItself(provider.Provider{Chat: "https://openrouter.ai/api/v1"}, provider.Chat) {
 		t.Error("searchesItself")
 	}

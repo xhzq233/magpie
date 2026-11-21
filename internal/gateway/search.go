@@ -121,7 +121,7 @@ func searchesItself(p provider.Provider, proto provider.Protocol) bool {
 		// web_search_call items and cited pages (2026-10-17, a real
 		// account). Translated for magpie's search instead, Codex's every
 		// turn on Copilot lost the relay (echo_ts on Discord).
-		return (p.Account.Agent == "codex" || p.Account.Agent == "copilot" || p.ID == "grok" || p.PluginProvider() == "grok") && proto == provider.Responses ||
+		return (p.Account.Agent == "codex" || p.Account.Agent == "chatgpt-api" || p.Account.Agent == "copilot" || p.ID == "grok" || p.PluginProvider() == "grok") && proto == provider.Responses ||
 			p.IsPlugin() && saidTo
 	}
 	if saidTo {
